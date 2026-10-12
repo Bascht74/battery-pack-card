@@ -202,6 +202,7 @@ The card stores voltages internally in V and resistances in Ω. **Voltage units 
 | `temp_hot`                   | `50` °C / `122` °F | … **red** from this. The three are set in the unit the card shows (`temperature_unit`, or on `auto` Home Assistant's own unit); leave them blank for the defaults. Sorted before use; negative values are fine. |
 | `capacity_unit`              | `Ah`    | Capacity in the battery as charge, `Ah`, or as energy, `kWh` (e.g. `624.0 / 628 Ah` becomes `31.9 / 32.2 kWh` at 51.2 V). A capacity sensor that already reports Wh or kWh is used as is. |
 | `nominal_voltage`            | *(cells × 3.2 V)* | Pack voltage used for kWh = Ah × V. Blank: LiFePO4's 3.2 V per cell, so 51.2 V for 16 cells. Set it for other chemistries, e.g. `58.8` for 16 NMC cells at 3.7 V. |
+| `invert_current`             | `false`           | The card takes positive current as charging. If your BMS reports charging as **negative** (the card then says *discharging* while the battery charges), turn this on: it flips the sign of current and power. |
 
 ### Status pills
 
@@ -381,6 +382,7 @@ Each pack's screen shows its SOC (with a bar), voltage, current, cell Δ and its
 | `entity_capacity_remaining` | entity or template | — | Bank remaining capacity (Rem-Capacity). Blank: the packs' sum. |
 | `entity_capacity_total`     | entity or template | — | Bank total capacity (Bat-Capacity). Blank: the packs' sum. |
 | `nominal_voltage`           | number  | —              | Voltage used to turn a bank capacity in Ah into kWh (with `capacity_unit: kWh`). Blank: the packs' mean nominal voltage, or without packs the bank voltage. |
+| `invert_current`            | bool    | `false`        | Flip the sign of current and power for all packs and for the bank's `entity_current` / `entity_power`, for a BMS that reports charging as negative. A pack (or `pack_defaults`) can still set its own. |
 
 The bank totals show on a **bank display** built into the top of the cabinet, styled after the JK BMS screen: voltage and current on top, the SOC in a ring next to the bank's total and remaining capacity, and below that the highest and lowest cell, the warmest temperature, the power in kW, the alarm state, the number of packs and the charge / discharge switches.
 
@@ -415,7 +417,7 @@ If the card says an older Battery Pack Card is loaded, the browser loads a secon
 
 ## Conventions
 
-- **Charge / discharge direction:** derived from the **current** sensor, not power. Many BMS integrations report power as an unsigned magnitude, so the card uses current's sign: positive current = charging (energy into the battery), negative = discharging. Make sure `entity_current` points at a signed sensor.
+- **Charge / discharge direction:** derived from the **current** sensor, not power. Many BMS integrations report power as an unsigned magnitude, so the card uses current's sign: positive current = charging (energy into the battery), negative = discharging. Make sure `entity_current` points at a signed sensor. Charging shown as discharging? Your BMS counts the other way round: set `invert_current: true`.
 - **Cell colouring:** cells are tinted by their offset from the pack's average voltage — by default green ≤ 2 mV, yellow ≤ 5, orange ≤ 10, red beyond. The bands are configurable, see [Cell colouring thresholds](#cell-colouring-thresholds). The lowest and highest cells get a red and green halo respectively (reversed with `max_cell_red: true`).
 - **Click-to-detail:** every visible element (battery, stat tile, pill, individual cell, temperature tile, alarm badge) opens HA's standard entity-detail dialog.
 - **Read-only:** the card never writes to the BMS. All `number.*` and `switch.*` settings entities are deliberately ignored. The only thing it ever writes is its own alert automations, when you switch alerts on.
