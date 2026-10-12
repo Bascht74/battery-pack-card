@@ -68,6 +68,9 @@ const DEFAULTS = {
   // nominal voltage defaults to cells × 3.2 V, LiFePO4's nominal cell voltage.
   capacity_unit: "Ah",
   nominal_voltage: "",
+  // The card takes positive current as charging. Some BMSes (or the way they
+  // reach HA) report it the other way round: this flips current and power.
+  invert_current: false,
   // One switch per status pill. A pill whose entity doesn't exist is hidden
   // regardless, so a BMS without a heater shows no Heater pill.
   show_pill_charge: true,
@@ -219,6 +222,7 @@ const ADVANCED_SECTIONS = [
             ], mode: "dropdown" } },
           },
           { name: "nominal_voltage", selector: { number: { min: 1, max: 1000, step: 0.1, mode: "box", unit_of_measurement: "V" } } },
+          { name: "invert_current", selector: { boolean: {} } },
         ],
       },
     ],
@@ -334,6 +338,7 @@ const LABELS = {
   temperature_unit: "Temperature unit",
   capacity_unit: "Capacity shown in",
   nominal_voltage: "Nominal pack voltage for kWh (blank = cells × 3.2 V)",
+  invert_current: "Invert current and power (BMS reports charging as negative)",
   show_pill_charge: "Charge",
   show_pill_discharge: "Discharge",
   show_pill_balance: "Balance",
@@ -1162,7 +1167,9 @@ class BatteryPackCard extends HTMLElement {
     return {
       name: cfg.name,
       soc: val(E.soc), soh: val(E.soh),
-      voltage: val(E.packV), current: val(E.curA), power: has(E.powW) ? this._watts(E.powW) : null,
+      voltage: val(E.packV),
+      current: has(E.curA) ? this._raw(E.curA) * this._sign() : null,
+      power: has(E.powW) ? this._watts(E.powW) * this._sign() : null,
       cellMin, cellMax,
       capacityRemaining: has(E.capRem) ? this._capacity(E.capRem).ah : null,
       capacityTotal: has(E.capTot) ? this._capacity(E.capTot).ah : null,
@@ -1236,6 +1243,8 @@ class BatteryPackCard extends HTMLElement {
     const u = isTpl(eid) ? "" : String(this._hass?.states[eid]?.attributes?.unit_of_measurement || "").trim();
     return /^kW$/i.test(u) ? v * 1000 : /^MW$/i.test(u) ? v * 1e6 : v;
   }
+  // -1 when the BMS reports charging as negative current (invert_current).
+  _sign() { const v = this._config.invert_current; return v === true || v === "true" ? -1 : 1; }
   _on(eid)    { return /^(on|true)$/i.test(String(this._state(eid))); }
   _raw(eid)   { return parseFloat(this._state(eid)); }
 
@@ -1372,9 +1381,9 @@ class BatteryPackCard extends HTMLElement {
     const soc   = this._num(E.soc);
     const soh   = this._num(E.soh);
     const packV = this._num(E.packV);
-    const curA  = this._num(E.curA);
+    const curA  = this._num(E.curA) * this._sign();
     // No power sensor: voltage × current, which is what the BMS would report.
-    const powRaw= this._exists(E.powW) ? this._watts(E.powW) : this._num(E.packV) * this._num(E.curA);
+    const powRaw= this._exists(E.powW) ? this._watts(E.powW) * this._sign() : this._num(E.packV) * curA;
     const powW  = Number.isFinite(powRaw) ? powRaw : 0;
     const balA  = this._num(E.balA);
     const cycles= this._state(E.cycles) || "0";
